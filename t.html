@@ -382,7 +382,6 @@
     .embedded-link:hover {
         text-decoration: underline;
     }
-    /* NEW: Share Button Style */
     #project-detail-share-btn {
         background: none;
         border: none;
@@ -566,8 +565,7 @@
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <!-- NEW: Share Button added here -->
-                    <button type="button" id="project-detail-share-btn" title="Chia sẻ dự án" data-project-name="" data-profile-url="">
+                    <button type="button" id="project-detail-share-btn" title="Chia sẻ dự án" data-project-name="" data-project-id="">
                         <i class="fas fa-share-alt"></i>
                     </button>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -731,7 +729,29 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleExportJson(e) { e.preventDefault(); if (!currentUser) return; try { const docSnap = await db.collection('profiles').doc(currentUser.username).get(); if (!docSnap.exists) { showToast("Không tìm thấy dữ liệu hồ sơ."); return; } const data = docSnap.data(); const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2)); const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", `bmass_profile_${currentUser.username}.json`); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove(); showToast("Đã xuất dữ liệu thành công!", "success"); closeSidebar(); } catch (error) { console.error("Lỗi khi xuất JSON:", error); showToast("Đã có lỗi xảy ra khi xuất dữ liệu."); } }
     async function handleImportJson(e) { const file = e.target.files[0]; if (!file) return; if (!confirm("Bạn có chắc chắn muốn nhập dữ liệu từ tệp này không? Mọi dữ liệu hồ sơ hiện tại (ngoại trừ username, email) sẽ bị ghi đè.")) return; const reader = new FileReader(); reader.onload = async (event) => { try { const importedData = JSON.parse(event.target.result); if (typeof importedData !== 'object' || importedData === null || !importedData.name) throw new Error("Tệp JSON không hợp lệ."); delete importedData.ownerUid; delete importedData.username; delete importedData.email; await db.collection('profiles').doc(currentUser.username).update(importedData); showToast("Nhập dữ liệu thành công! Trang sẽ được làm mới.", "success"); setTimeout(() => location.reload(), 1500); } catch (error) { console.error("Lỗi khi nhập JSON:", error); showToast("Lỗi: " + error.message); } finally { e.target.value = null; } }; reader.readAsText(file); closeSidebar(); }
 
-    async function handleRouteChange() { const username = new URLSearchParams(window.location.search).get('user'); if (username) { await fetchAndRenderProfile(username); } else { if (currentUser) { history.pushState(null, '', `?user=${currentUser.username}`); await fetchAndRenderProfile(currentUser.username); } else { switchView('auth'); } } }
+    // MODIFIED: Handle route change to check for project ID
+    async function handleRouteChange() {
+        const params = new URLSearchParams(window.location.search);
+        const username = params.get('user');
+        const projectIdToShow = params.get('project');
+
+        if (username) {
+            const profileData = await fetchAndRenderProfile(username);
+            
+            // NEW: If a project ID is in the URL, try to show its modal after the page has loaded
+            if (projectIdToShow && profileData) {
+                await showProjectModalById(profileData, projectIdToShow, username);
+            }
+
+        } else {
+            if (currentUser) {
+                history.pushState(null, '', `?user=${currentUser.username}`);
+                await fetchAndRenderProfile(currentUser.username);
+            } else {
+                switchView('auth');
+            }
+        }
+    }
 
     function getCategoryDisplayName(key, customCategories = {}) {
         if (key === 'leaderboard') return 'Bảng xếp hạng';
@@ -767,11 +787,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+    // MODIFIED: Function now returns profile data on success
     async function fetchAndRenderProfile(username) {
         switchView('loading');
         try {
             const docSnap = await db.collection('profiles').doc(username).get();
-            if (!docSnap.exists) { switchView('notFound'); return; }
+            if (!docSnap.exists) {
+                switchView('notFound');
+                return null;
+            }
             
             const data = docSnap.data();
             const isOwner = currentUser && currentUser.uid === data.ownerUid;
@@ -786,7 +810,6 @@ document.addEventListener('DOMContentLoaded', () => {
             let tabsHTML = '';
             let contentHTML = '';
 
-            // --- NEW: LEADERBOARD LOGIC ---
             const leaderboardProjects = [...allProjects]
                 .filter(p => p.clicks > 0)
                 .sort((a, b) => (b.clicks || 0) - (a.clicks || 0))
@@ -815,7 +838,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).join('');
                 contentHTML += `<div class="category-content" data-category="leaderboard"><div class="row g-3">${leaderboardItemsHTML}</div></div>`;
             }
-            // --- END: LEADERBOARD LOGIC ---
 
             const allCategoryKeys = [...new Set([...Object.keys(defaultCategories), ...Object.keys(customCategories)])];
 
@@ -871,8 +893,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.project-card').forEach(card => {
                 card.addEventListener('click', () => handleProjectClick(card));
             });
-
-        } catch (error) { console.error("Error loading profile:", error); switchView('notFound'); }
+            
+            return data; // Return data on success
+        } catch (error) {
+            console.error("Error loading profile:", error);
+            switchView('notFound');
+            return null; // Return null on error
+        }
     }
 
     function setupCategoryTabs() {
@@ -946,10 +973,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 linkBtn.dataset.projectIndex = projectIndex;
                 linkBtn.dataset.username = username;
 
-                // NEW: Populate Share Button
+                // MODIFIED: Populate Share Button with project ID
                 const shareBtn = document.getElementById('project-detail-share-btn');
                 shareBtn.dataset.projectName = project.name;
-                shareBtn.dataset.profileUrl = `${window.location.origin}${window.location.pathname}?user=${username}`;
+                shareBtn.dataset.projectId = project.id; 
 
                 projectDetailModal.show();
             }
@@ -959,28 +986,52 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // NEW: Share Project Handler
+    // MODIFIED: Share handler creates a URL with the project ID
     async function handleShareProject(buttonElement) {
         const name = buttonElement.dataset.projectName;
-        const url = buttonElement.dataset.profileUrl;
+        const projectId = buttonElement.dataset.projectId;
+        const username = new URLSearchParams(window.location.search).get('user');
+        
+        if (!name || !projectId || !username) return;
 
-        if (navigator.share) { // Use Web Share API if available
+        const shareUrl = `${window.location.origin}${window.location.pathname}?user=${username}&project=${projectId}`;
+
+        if (navigator.share) {
             try {
                 await navigator.share({
-                    title: `Check out this project: ${name}`,
-                    text: `I found this project "${name}" on Bmass Profiles!`,
-                    url: url,
+                    title: `Check out: ${name}`,
+                    text: `Xem dự án "${name}" trên trang của ${username}!`,
+                    url: shareUrl,
                 });
             } catch (error) {
                 console.error('Error sharing:', error);
             }
-        } else { // Fallback to copying the link
-            navigator.clipboard.writeText(url).then(() => {
-                showToast("Link trang đã được sao chép!", "success");
+        } else {
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                showToast("Link dự án đã được sao chép!", "success");
             }).catch(err => {
                 console.error('Failed to copy: ', err);
                 showToast("Không thể sao chép link.");
             });
+        }
+    }
+    
+    // NEW: Function to show a project modal directly from a project ID
+    async function showProjectModalById(profileData, projectId, username) {
+        const allProjects = profileData.projects || [];
+        // Use == for loose comparison as URL param is string and ID is number
+        const projectToShow = allProjects.find(p => p.id == projectId); 
+
+        if (projectToShow) {
+            const projectIndex = allProjects.indexOf(projectToShow);
+            const cardElement = { dataset: { projectIndex: projectIndex } }; // Mock element
+            await handleProjectClick(cardElement);
+
+            // Clean the URL to avoid modal popping up on refresh
+            const cleanUrl = `${window.location.pathname}?user=${username}`;
+            history.replaceState(null, '', cleanUrl);
+        } else {
+            showToast("Không tìm thấy dự án với ID này.");
         }
     }
 
@@ -1252,7 +1303,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>`;
     }
 
-    // NEW: Function to generate a new unique project ID
     function getNewProjectId(projectsArray) {
         if (!projectsArray || projectsArray.length === 0) {
             return 1;
@@ -1282,13 +1332,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }); 
             
             const projectsData = []; 
+            const existingProjects = (await db.collection('profiles').doc(currentUser.username).get()).data().projects || [];
+
             document.querySelectorAll('#edit-projects-container .project-field').forEach(field => { 
                 const name = field.querySelector('.project-name').value.trim(); 
                 const link = field.querySelector('.project-link').value.trim(); 
                 if (name && link) { 
                     let projectId = parseInt(field.querySelector('.project-id-hidden').value, 10);
                     if (!projectId || isNaN(projectId)) {
-                        projectId = getNewProjectId(projectsData);
+                         // Pass both new and existing projects to find the true max ID
+                        projectId = getNewProjectId([...existingProjects, ...projectsData]);
                     }
 
                     projectsData.push({ 
@@ -1374,7 +1427,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentUser = { uid: refreshedUser.uid, email: refreshedUser.email, username: profileData.username, providerId: refreshedUser.providerData[0].providerId };
                 } else { console.warn("User in Auth but not Firestore. Logging out."); await auth.signOut(); currentUser = null; }
             } else currentUser = null;
-            setupSidebar(); handleRouteChange();
+            setupSidebar(); 
+            await handleRouteChange(); // Make sure this is awaited
         });
         document.getElementById('login-form').addEventListener('submit', handleLogin);
         document.getElementById('register-form').addEventListener('submit', handleRegister);
