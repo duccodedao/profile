@@ -283,7 +283,7 @@
         box-shadow: 0 0 0 0.25rem rgba(145, 94, 255, 0.25);
     }
     
-    /* === NEW: Project Detail Modal Styling === */
+    /* === Project Detail Modal Styling === */
     #projectDetailModal .modal-content {
         border-radius: 1rem;
         border: none;
@@ -363,6 +363,26 @@
     #project-detail-link-btn:hover {
         transform: translateY(-3px);
         box-shadow: 0 6px 20px rgba(145, 94, 255, 0.4);
+    }
+
+    /* === NEW: Long Description Styling === */
+    #project-detail-long-description {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.75rem;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+        line-height: 1.6;
+        word-wrap: break-word;
+    }
+    .embedded-link {
+        color: var(--accent-primary);
+        font-weight: 500;
+        text-decoration: none;
+        word-break: break-all;
+    }
+    .embedded-link:hover {
+        text-decoration: underline;
     }
 
 </style>
@@ -532,9 +552,9 @@
         </div>
     </div>
     
-    <!-- NEW: Project Detail Modal -->
+    <!-- Project Detail Modal -->
     <div class="modal fade" id="projectDetailModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -548,7 +568,15 @@
                         </div>
                     </div>
                     <p id="project-detail-description">Project description goes here...</p>
-                    <div id="project-detail-stats">
+                    
+                    <!-- NEW: Long Description Container -->
+                    <div id="project-detail-long-description-container" style="display: none;">
+                         <hr>
+                         <h6 class="mb-2">Chi tiết</h6>
+                         <div id="project-detail-long-description"></div>
+                    </div>
+
+                    <div id="project-detail-stats" class="mt-4">
                         <div class="stat-item">
                             <h6 id="project-detail-clicks">0</h6>
                             <p>Lượt xem</p>
@@ -600,7 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const profilePageContent = document.getElementById('profile-page-content');
     const editModal = new bootstrap.Modal(document.getElementById('editModal'));
     const changePasswordModal = new bootstrap.Modal(document.getElementById('changePasswordModal'));
-    const projectDetailModal = new bootstrap.Modal(document.getElementById('projectDetailModal')); // NEW
+    const projectDetailModal = new bootstrap.Modal(document.getElementById('projectDetailModal'));
     const importJsonInput = document.getElementById('import-json-input'); 
 
     const socialIcons = { 
@@ -713,6 +741,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return trimmedUrl;
     }
+    
+    // NEW: Function to find and convert URLs in text to clickable links
+    function linkify(text) {
+        if (!text) return '';
+        // Regex to find URLs (http, https, www)
+        const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])|(\bwww\.[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+        
+        let processedText = text.replace(urlRegex, function(url) {
+            let href = url;
+            if (!href.startsWith('http')) {
+                href = 'https://' + href;
+            }
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="embedded-link">${url}</a>`;
+        });
+        
+        // Preserve line breaks
+        return processedText.replace(/\n/g, '<br>');
+    }
+
 
     async function fetchAndRenderProfile(username) {
         switchView('loading');
@@ -784,7 +831,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             document.querySelectorAll('.project-card').forEach(card => {
-                card.addEventListener('click', () => handleProjectClick(card)); // MODIFIED
+                card.addEventListener('click', () => handleProjectClick(card));
             });
 
         } catch (error) { console.error("Error loading profile:", error); switchView('notFound'); }
@@ -825,7 +872,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabs[0]) switchTab(tabs[0]); 
     }
 
-    // === NEW/MODIFIED: Project Click Logic ===
     async function handleProjectClick(cardElement) {
         const projectIndex = parseInt(cardElement.dataset.projectIndex, 10);
         const username = new URLSearchParams(window.location.search).get('user');
@@ -847,6 +893,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('project-detail-description').textContent = project.description || 'Không có mô tả.';
                 document.getElementById('project-detail-category').textContent = getCategoryDisplayName(project.category || 'project', customCategories);
                 document.getElementById('project-detail-clicks').textContent = project.clicks || 0;
+
+                // MODIFIED: Handle long description
+                const longDescContainer = document.getElementById('project-detail-long-description-container');
+                const longDescElement = document.getElementById('project-detail-long-description');
+
+                if (project.longDescription && project.longDescription.trim() !== '') {
+                    longDescElement.innerHTML = linkify(project.longDescription);
+                    longDescContainer.style.display = 'block';
+                } else {
+                    longDescContainer.style.display = 'none';
+                    longDescElement.innerHTML = '';
+                }
 
                 // Set data attributes for the link button
                 const linkBtn = document.getElementById('project-detail-link-btn');
@@ -900,7 +958,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Failed to update click count:", error);
         }
     }
-    // === END: Project Click Logic ===
 
     async function handleAddCategory(fromModal = false) {
         const categoryName = prompt("Nhập tên danh mục mới:");
@@ -1106,6 +1163,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editModal.show();
     }
     
+    // MODIFIED: Added textarea for longDescription
     function createProjectFieldHTML(project = {}, index, categories, customCategories = {}) {
         const categoryOptions = categories.map(key => {
             const displayName = getCategoryDisplayName(key, customCategories);
@@ -1122,9 +1180,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="col-md-6"><label class="form-label small">Tên</label><input type="text" class="form-control mb-2 project-name" placeholder="Tên dự án/sàn" value="${project.name || ''}"></div>
                 <div class="col-md-6"><label class="form-label small">Danh mục</label><select class="form-select project-category">${categoryOptions}</select></div>
             </div>
-            <label class="form-label small">Mô tả</label><input type="text" class="form-control mb-2 project-desc" placeholder="Mô tả ngắn" value="${project.description || ''}">
+            <label class="form-label small">Mô tả ngắn</label><input type="text" class="form-control mb-2 project-desc" placeholder="Mô tả ngắn gọn" value="${project.description || ''}">
             <label class="form-label small">Link</label><input type="url" class="form-control mb-2 project-link" placeholder="Đường dẫn (URL)" value="${project.link || ''}">
             <label class="form-label small">URL Hình ảnh</label><input type="url" class="form-control project-image" placeholder="Link ảnh logo" value="${project.imageUrl || ''}">
+            <label class="form-label small mt-2">Mô tả dài (Hướng dẫn, chi tiết...)</label>
+            <textarea class="form-control project-long-desc" rows="4" placeholder="Nội dung chi tiết sẽ hiển thị trong popup...">${project.longDescription || ''}</textarea>
         </div>`;
     }
 
@@ -1158,7 +1218,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         link: normalizeUrl(link),
                         imageUrl: field.querySelector('.project-image').value.trim(), 
                         category: field.querySelector('.project-category').value,
-                        clicks: parseInt(field.querySelector('.project-clicks-hidden').value, 10) || 0
+                        clicks: parseInt(field.querySelector('.project-clicks-hidden').value, 10) || 0,
+                        longDescription: field.querySelector('.project-long-desc').value.trim() // MODIFIED: Save long description
                     }); 
                 } 
             }); 
@@ -1214,7 +1275,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("Lỗi gửi email đặt lại mật khẩu:", error);
             showToast("Gửi email thất bại. Vui lòng thử lại.");
-            btn.disabled = false; // Re-enable button on failure
+            btn.disabled = false;
             btn.textContent = 'Gửi liên kết';
         }
     }
@@ -1245,7 +1306,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('footer-year').textContent = new Date().getFullYear();
         setupAuthForm();
 
-        // NEW: Add event listener for the modal's action button
         document.getElementById('project-detail-link-btn').addEventListener('click', (e) => handleProjectLinkActivation(e.currentTarget));
     }
 
