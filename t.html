@@ -364,8 +364,6 @@
         transform: translateY(-3px);
         box-shadow: 0 6px 20px rgba(145, 94, 255, 0.4);
     }
-
-    /* === NEW: Long Description Styling === */
     #project-detail-long-description {
         background-color: #f8f9fa;
         padding: 1rem;
@@ -383,6 +381,17 @@
     }
     .embedded-link:hover {
         text-decoration: underline;
+    }
+    /* NEW: Share Button Style */
+    #project-detail-share-btn {
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        color: var(--text-secondary);
+        transition: color 0.3s;
+    }
+    #project-detail-share-btn:hover {
+        color: var(--accent-primary);
     }
 
 </style>
@@ -557,6 +566,10 @@
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
+                    <!-- NEW: Share Button added here -->
+                    <button type="button" id="project-detail-share-btn" title="Chia sẻ dự án" data-project-name="" data-profile-url="">
+                        <i class="fas fa-share-alt"></i>
+                    </button>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -569,7 +582,6 @@
                     </div>
                     <p id="project-detail-description">Project description goes here...</p>
                     
-                    <!-- NEW: Long Description Container -->
                     <div id="project-detail-long-description-container" style="display: none;">
                          <hr>
                          <h6 class="mb-2">Chi tiết</h6>
@@ -722,12 +734,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleRouteChange() { const username = new URLSearchParams(window.location.search).get('user'); if (username) { await fetchAndRenderProfile(username); } else { if (currentUser) { history.pushState(null, '', `?user=${currentUser.username}`); await fetchAndRenderProfile(currentUser.username); } else { switchView('auth'); } } }
 
     function getCategoryDisplayName(key, customCategories = {}) {
-        if (defaultCategories[key]) {
-            return defaultCategories[key];
-        }
-        if (customCategories[key]) {
-            return customCategories[key];
-        }
+        if (key === 'leaderboard') return 'Bảng xếp hạng';
+        if (defaultCategories[key]) return defaultCategories[key];
+        if (customCategories[key]) return customCategories[key];
         return key.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
 
@@ -742,10 +751,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return trimmedUrl;
     }
     
-    // NEW: Function to find and convert URLs in text to clickable links
     function linkify(text) {
         if (!text) return '';
-        // Regex to find URLs (http, https, www)
         const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])|(\bwww\.[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
         
         let processedText = text.replace(urlRegex, function(url) {
@@ -756,7 +763,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="embedded-link">${url}</a>`;
         });
         
-        // Preserve line breaks
         return processedText.replace(/\n/g, '<br>');
     }
 
@@ -775,11 +781,43 @@ document.addEventListener('DOMContentLoaded', () => {
             const profileInfoHTML = `<div class="card-glass text-center" style="padding-top: 80px;"><img src="${data.avatarUrl || 'https://via.placeholder.com/150'}" class="profile-avatar"><div class="profile-name-wrapper mt-3"><h1 class="profile-name">${data.name}</h1>${data.isVerified ? '<i class="fas fa-check-circle verified-tick" title="Đã xác thực"></i>' : ''}</div><p class="text-secondary col-md-10 mx-auto mt-2" style="color: rgba(255, 255, 255, 0.7) !important;">${data.bio}</p><div class="social-links">${socialLinksHTML}</div>${isOwner ? '<button id="edit-profile-btn" title="Chỉnh sửa"><i class="fas fa-pencil-alt"></i></button>' : ''}</div>`;
             
             const customCategories = data.customCategories || {}; 
-            const allCategoryKeys = [...new Set([...Object.keys(defaultCategories), ...Object.keys(customCategories)])];
             const allProjects = data.projects || [];
             
             let tabsHTML = '';
             let contentHTML = '';
+
+            // --- NEW: LEADERBOARD LOGIC ---
+            const leaderboardProjects = [...allProjects]
+                .filter(p => p.clicks > 0)
+                .sort((a, b) => (b.clicks || 0) - (a.clicks || 0))
+                .slice(0, 10);
+
+            if (leaderboardProjects.length > 0) {
+                tabsHTML += `<button class="category-tab" data-category="leaderboard"><i class="fas fa-trophy" style="color: #FFD700;"></i><span>Bảng xếp hạng</span></button>`;
+                
+                const leaderboardItemsHTML = leaderboardProjects.map(p => {
+                    const projectIndex = allProjects.indexOf(p);
+                    return `<div class="col-12 col-md-6 mb-3">
+                        <div data-project-index="${projectIndex}" class="project-card h-100">
+                            <img src="${p.imageUrl || getRandomProjectImage()}" class="project-icon" alt="${p.name}">
+                            <div class="project-card-content">
+                                <div class="text-start">
+                                    <h5>${p.name}</h5>
+                                    <p class="mb-0">${p.description || ''}</p>
+                                </div>
+                                <div class="project-clicks">
+                                    <i class="fas fa-eye me-1"></i>
+                                    <span class="project-clicks-count">${p.clicks || 0}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+                contentHTML += `<div class="category-content" data-category="leaderboard"><div class="row g-3">${leaderboardItemsHTML}</div></div>`;
+            }
+            // --- END: LEADERBOARD LOGIC ---
+
+            const allCategoryKeys = [...new Set([...Object.keys(defaultCategories), ...Object.keys(customCategories)])];
 
             allCategoryKeys.forEach(key => {
                 const displayName = getCategoryDisplayName(key, customCategories);
@@ -887,17 +925,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const customCategories = data.customCategories || {};
 
             if (project) {
-                // Populate Modal
                 document.getElementById('project-detail-icon').src = project.imageUrl || getRandomProjectImage();
                 document.getElementById('project-detail-name').textContent = project.name;
                 document.getElementById('project-detail-description').textContent = project.description || 'Không có mô tả.';
                 document.getElementById('project-detail-category').textContent = getCategoryDisplayName(project.category || 'project', customCategories);
                 document.getElementById('project-detail-clicks').textContent = project.clicks || 0;
 
-                // MODIFIED: Handle long description
                 const longDescContainer = document.getElementById('project-detail-long-description-container');
                 const longDescElement = document.getElementById('project-detail-long-description');
-
                 if (project.longDescription && project.longDescription.trim() !== '') {
                     longDescElement.innerHTML = linkify(project.longDescription);
                     longDescContainer.style.display = 'block';
@@ -906,11 +941,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     longDescElement.innerHTML = '';
                 }
 
-                // Set data attributes for the link button
                 const linkBtn = document.getElementById('project-detail-link-btn');
                 linkBtn.dataset.link = project.link;
                 linkBtn.dataset.projectIndex = projectIndex;
                 linkBtn.dataset.username = username;
+
+                // NEW: Populate Share Button
+                const shareBtn = document.getElementById('project-detail-share-btn');
+                shareBtn.dataset.projectName = project.name;
+                shareBtn.dataset.profileUrl = `${window.location.origin}${window.location.pathname}?user=${username}`;
 
                 projectDetailModal.show();
             }
@@ -919,6 +958,32 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast("Không thể tải thông tin dự án.");
         }
     }
+    
+    // NEW: Share Project Handler
+    async function handleShareProject(buttonElement) {
+        const name = buttonElement.dataset.projectName;
+        const url = buttonElement.dataset.profileUrl;
+
+        if (navigator.share) { // Use Web Share API if available
+            try {
+                await navigator.share({
+                    title: `Check out this project: ${name}`,
+                    text: `I found this project "${name}" on Bmass Profiles!`,
+                    url: url,
+                });
+            } catch (error) {
+                console.error('Error sharing:', error);
+            }
+        } else { // Fallback to copying the link
+            navigator.clipboard.writeText(url).then(() => {
+                showToast("Link trang đã được sao chép!", "success");
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                showToast("Không thể sao chép link.");
+            });
+        }
+    }
+
 
     async function handleProjectLinkActivation(buttonElement) {
         const link = buttonElement.dataset.link;
@@ -943,7 +1008,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 await docRef.update({ projects: projects });
 
-                // Update UI in both the main page and the modal
                 const clicksElementOnCard = document.querySelector(`.project-card[data-project-index="${projectIndex}"] .project-clicks-count`);
                 const clicksElementInModal = document.getElementById('project-detail-clicks');
                 
@@ -1163,7 +1227,6 @@ document.addEventListener('DOMContentLoaded', () => {
         editModal.show();
     }
     
-    // MODIFIED: Added textarea for longDescription
     function createProjectFieldHTML(project = {}, index, categories, customCategories = {}) {
         const categoryOptions = categories.map(key => {
             const displayName = getCategoryDisplayName(key, customCategories);
@@ -1175,6 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <strong>Mục #${index + 1}</strong>
                 <button type="button" class="btn-close" onclick="this.parentElement.parentElement.remove()"></button>
             </div>
+            <input type="hidden" class="project-id-hidden" value="${project.id || ''}">
             <input type="hidden" class="project-clicks-hidden" value="${project.clicks || 0}">
             <div class="row g-2">
                 <div class="col-md-6"><label class="form-label small">Tên</label><input type="text" class="form-control mb-2 project-name" placeholder="Tên dự án/sàn" value="${project.name || ''}"></div>
@@ -1187,6 +1251,16 @@ document.addEventListener('DOMContentLoaded', () => {
             <textarea class="form-control project-long-desc" rows="4" placeholder="Nội dung chi tiết sẽ hiển thị trong popup...">${project.longDescription || ''}</textarea>
         </div>`;
     }
+
+    // NEW: Function to generate a new unique project ID
+    function getNewProjectId(projectsArray) {
+        if (!projectsArray || projectsArray.length === 0) {
+            return 1;
+        }
+        const maxId = Math.max(...projectsArray.map(p => p.id || 0));
+        return maxId + 1;
+    }
+
 
     async function handleSaveProfile() { 
         const saveBtn = document.getElementById('save-profile-btn'); 
@@ -1212,14 +1286,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const name = field.querySelector('.project-name').value.trim(); 
                 const link = field.querySelector('.project-link').value.trim(); 
                 if (name && link) { 
+                    let projectId = parseInt(field.querySelector('.project-id-hidden').value, 10);
+                    if (!projectId || isNaN(projectId)) {
+                        projectId = getNewProjectId(projectsData);
+                    }
+
                     projectsData.push({ 
+                        id: projectId,
                         name, 
                         description: field.querySelector('.project-desc').value.trim(), 
                         link: normalizeUrl(link),
                         imageUrl: field.querySelector('.project-image').value.trim(), 
                         category: field.querySelector('.project-category').value,
                         clicks: parseInt(field.querySelector('.project-clicks-hidden').value, 10) || 0,
-                        longDescription: field.querySelector('.project-long-desc').value.trim() // MODIFIED: Save long description
+                        longDescription: field.querySelector('.project-long-desc').value.trim()
                     }); 
                 } 
             }); 
@@ -1307,6 +1387,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupAuthForm();
 
         document.getElementById('project-detail-link-btn').addEventListener('click', (e) => handleProjectLinkActivation(e.currentTarget));
+        document.getElementById('project-detail-share-btn').addEventListener('click', (e) => handleShareProject(e.currentTarget));
     }
 
     main();
