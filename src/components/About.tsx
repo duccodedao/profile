@@ -36,23 +36,23 @@ export default function About() {
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
-            className="relative grid grid-cols-2 gap-4"
+            className="relative grid grid-cols-2 sm:grid-cols-2 gap-4"
           >
             {/* Stats or feature cards */}
             {[
               { label: "Kinh nghiệm", value: "5+ Năm" },
-              { label: "Bệnh nhân", value: "1000+" },
+              { label: "Dự án", value: "50+" },
               { label: "Chứng chỉ", value: "10+" },
               { label: "Tâm huyết", value: "100%" }
             ].map((item, index) => (
               <div 
                 key={index}
-                className="glass p-8 rounded-3xl text-center hover:bg-white/10 transition-colors group interactive"
+                className="glass p-6 md:p-8 rounded-3xl text-center hover:bg-white/10 transition-colors group interactive"
               >
-                <div className="text-3xl font-black mb-2 text-gradient group-hover:scale-110 transition-transform">
+                <div className="text-2xl md:text-3xl font-black mb-2 text-gradient group-hover:scale-110 transition-transform">
                   {item.value}
                 </div>
-                <div className="text-xs uppercase tracking-widest text-gray-500">
+                <div className="text-[10px] md:text-xs uppercase tracking-widest text-gray-500">
                   {item.label}
                 </div>
               </div>

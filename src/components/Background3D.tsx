@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Points, PointMaterial, Float } from '@react-three/drei';
 import * as THREE from 'three';
@@ -55,6 +55,18 @@ function FloatingBlobs() {
 }
 
 export default function Background3D() {
+  const [isWebGLAvailable, setIsWebGLAvailable] = useState(true);
+
+  useEffect(() => {
+    try {
+      const canvas = document.createElement('canvas');
+      const support = !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+      setIsWebGLAvailable(support);
+    } catch (e) {
+      setIsWebGLAvailable(false);
+    }
+  }, []);
+
   return (
     <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
       {/* CSS Gradient Overlay */}
@@ -62,12 +74,14 @@ export default function Background3D() {
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/10 rounded-full blur-[120px] opacity-20 animate-pulse" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-teal-400/5 rounded-full blur-[120px] opacity-10 animate-pulse" style={{ animationDelay: '2s' }} />
       
-      <Canvas camera={{ position: [0, 0, 5], fov: 75 }}>
-        <ambientLight intensity={0.2} />
-        <pointLight position={[10, 10, 10]} intensity={0.5} />
-        <ParticleField />
-        <FloatingBlobs />
-      </Canvas>
+      {isWebGLAvailable && (
+        <Canvas camera={{ position: [0, 0, 5], fov: 75 }}>
+          <ambientLight intensity={0.2} />
+          <pointLight position={[10, 10, 10]} intensity={0.5} />
+          <ParticleField />
+          <FloatingBlobs />
+        </Canvas>
+      )}
     </div>
   );
 }

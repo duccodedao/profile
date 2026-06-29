@@ -19,8 +19,6 @@ export default function App() {
       
       <div className="relative z-10">
         <Hero />
-        <About />
-        <Skills />
         <Contact />
         <Footer />
       </div>
